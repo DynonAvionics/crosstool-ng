@@ -1,0 +1,14 @@
+- This is crosstool-ng 1.20.x, because that was the newest that supported gcc 4.4.x and linux 
+  26.27.x kernel headers.
+- I needed additional dependencies:
+  sudo apt-get install gperf
+- Steps taken to re-build the i686-dynon-linux-gnu configuration, based on the old one:
+  - Copy in files from old SVN sdk/crosstool-ng/samples/i686-dynon-linux-gnu
+  - 
+- Build steps (from checkout):
+  ./bootstrap
+  .configure --enable-local
+  make
+  make install
+  ./ct-ng i686-dynon-linux-gnu
+  ./ct-ng build
