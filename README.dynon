@@ -1,11 +1,33 @@
 - This is crosstool-ng 1.20.x, because that was the newest that supported gcc 4.4.x and linux 
-  26.27.x kernel headers.
+  26.27.x kernel headers. The intent here is to take baby steps that should still work just fine on 
+  old SkyView hardware, within its constraints.
 - I needed additional dependencies:
   sudo apt-get install gperf
 - Steps taken to re-build the i686-dynon-linux-gnu configuration, based on the old one:
   - Copy in files from old SVN sdk/crosstool-ng/samples/i686-dynon-linux-gnu
-  - 
-- Build steps (from checkout):
+  - Re-build an updated defconfig from the old full config, with a copy to compare for changes:
+    ./ct-ng i686-dynon-linux-gnu
+    cp samples/i686-dynon-linux-gnu/crosstool.config samples/i686-dynon-linux-gnu/crosstool.fullconfig
+    - Commit the .fullconfig to git as baseline for history.
+    ./ct-ng menuconfig
+      - Set TARGET_VENDOR to 'dynon'
+      - Save config (which goes to .config)
+    ./ct-ng saveconfig
+    - Diff new .config to old i686-dynon-linux-gnu/crosstool.fullconfig and observe:
+      - New config CT_TOOLCHAIN_ENABLE_NLS may be desired to get / preserve gettext functionality
+      - Linux kernel version got reset to latest
+      - Binutils version got set to latest
+      - LibC version was preserved
+      - New config CT_LIBC_LOCALES may be desired to limit locales built into toolchain
+      - GCC version was preserved
+      - GDB version was preserved
+    ./ct-ng menuconfig
+      - Set Linux Kernel version to 2.6.27.x (CT_KERNEL_V_2_6_27), as before
+      - Set CT_TOOLCHAIN_ENABLE_NLS
+    ./ct-ng saveconfig
+    cp .config samples/i686-dynon-linux-gnu/crosstool.fullconfig
+    - Commit all to git
+- Build steps (from raw checkout):
   ./bootstrap
   .configure --enable-local
   make
