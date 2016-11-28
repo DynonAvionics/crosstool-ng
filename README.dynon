@@ -26,7 +26,16 @@
       - Set CT_TOOLCHAIN_ENABLE_NLS
     ./ct-ng saveconfig
     cp .config samples/i686-dynon-linux-gnu/crosstool.fullconfig
-    - Commit all to git
+    - Committed all to git as 2ea38706af3d
+    - Re-check that full config matches defconfig:
+      ./ct-ng i686-dynon-linux-gnu
+      - Diff to i686-dynon-linux-gnu/crosstool.fullconfig, only timestamp in header is different
+  - Re-build toolchain with same basic versions as everything, but updated crosstool-ng:
+    ./ct-ng i686-dynon-linux-gnu
+    ./ct-ng build
+  - Ran into the build error in building MPFR 2.4.2 with a too-new automake described here:
+    https://sourceware.org/ml/crossgcc/2012-09/msg00139.html
+    - Re-configured crosstool to build all "companion tools", per the suggestion in the above link
 - Build steps (from raw checkout):
   ./bootstrap
   .configure --enable-local

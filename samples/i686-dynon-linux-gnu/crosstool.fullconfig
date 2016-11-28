@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # crosstool-NG 1.20.0 Configuration
-# Mon Nov 28 12:22:25 2016
+# Mon Nov 28 14:09:52 2016
 #
 CT_CONFIGURE_has_make381=y
 CT_CONFIGURE_has_xz=y
@@ -542,7 +542,12 @@ CT_MPFR_VERSION="2.4.2"
 #
 # READ HELP before you say 'Y' below !!!
 #
-# CT_COMP_TOOLS is not set
+CT_COMP_TOOLS=y
+CT_COMP_TOOLS_make=y
+CT_COMP_TOOLS_m4=y
+CT_COMP_TOOLS_autoconf=y
+CT_COMP_TOOLS_automake=y
+CT_COMP_TOOLS_libtool=y
 
 #
 # Test suite
