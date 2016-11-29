@@ -45,7 +45,7 @@
       server to get a toolchain that is usable on 32-bit hosts.
 - Build steps (from raw checkout):
   ./bootstrap
-  .configure --enable-local
+  ./configure --enable-local
   make
   make install
   ./ct-ng i686-dynon-linux-gnu
