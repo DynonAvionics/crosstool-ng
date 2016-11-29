@@ -40,7 +40,9 @@
   - Ran into a build error in building GOLD with static compilation as described here:
     https://github.com/crosstool-ng/crosstool-ng/issues/210
     - Re-configured crosstool to disable the GOLD linker, per the suggestion in the above link
-    - Committed all to git
+    - Committed all to git as 0e158219028a
+    - Build completed successfully on Ubuntu 14.04 for 64-bit hosts, but need to run on build 
+      server to get a toolchain that is usable on 32-bit hosts.
 - Build steps (from raw checkout):
   ./bootstrap
   .configure --enable-local
