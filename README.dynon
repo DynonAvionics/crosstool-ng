@@ -33,9 +33,14 @@
   - Re-build toolchain with same basic versions as everything, but updated crosstool-ng:
     ./ct-ng i686-dynon-linux-gnu
     ./ct-ng build
-  - Ran into the build error in building MPFR 2.4.2 with a too-new automake described here:
+  - Ran into a build error in building MPFR 2.4.2 with a too-new automake described here:
     https://sourceware.org/ml/crossgcc/2012-09/msg00139.html
     - Re-configured crosstool to build all "companion tools", per the suggestion in the above link
+    - Committed all to git as e2659e09970c
+  - Ran into a build error in building GOLD with static compilation as described here:
+    https://github.com/crosstool-ng/crosstool-ng/issues/210
+    - Re-configured crosstool to disable the GOLD linker, per the suggestion in the above link
+    - Committed all to git
 - Build steps (from raw checkout):
   ./bootstrap
   .configure --enable-local
