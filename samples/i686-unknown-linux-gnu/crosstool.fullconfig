@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # crosstool-NG 1.20.0 Configuration
-# Mon Nov 28 18:09:54 2016
+# Tue May  7 07:41:45 2019
 #
 CT_CONFIGURE_has_make381=y
 CT_CONFIGURE_has_xz=y
@@ -24,7 +24,7 @@ CT_EXPERIMENTAL=y
 #
 # Paths
 #
-CT_LOCAL_TARBALLS_DIR="${HOME}/src"
+CT_LOCAL_TARBALLS_DIR="/opt/dynonavionics/sources_cache"
 CT_SAVE_TARBALLS=y
 CT_CUSTOM_LOCATION_ROOT_DIR=""
 CT_WORK_DIR="${CT_TOP_DIR}/.build"
