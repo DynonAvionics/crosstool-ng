@@ -43,10 +43,25 @@
     - Committed all to git as 0e158219028a
     - Build completed successfully on Ubuntu 14.04 for 64-bit hosts, but need to run on build 
       server to get a toolchain that is usable on 32-bit hosts.
-- Build steps (from raw checkout):
+  - Restarted effort based on a Docker, running as:
+    $ docker run -it --volume "/opt/dynonavionics:/opt/dynonavionics" \
+      --volume "$(pwd):/home/sw-builder/sandbox" -w /home/sw-builder/sandbox \
+      registry.gitlab.com/dynonavionics/docker/skyview-build-base:stable \
+      /bin/bash
+  - Needed some more packages:
+    $ sudo apt-get update
+    $ sudo apt-get install gperf libexpat1-dev texinfo
+  - Moved configs to i686-unknown-linux-gnu, where everything expects it to be
+    WARNING: A full ./ct-ng menuconfig && ./ct-ng saveconfig cycle always seems to reset the 
+    alternative sources download location for some reason, so you need to reset that every time.
+- Build steps (from clean or dirty checkout):
+  git clean -fdx
   ./bootstrap
   ./configure --enable-local
   make
   make install
-  ./ct-ng i686-dynon-linux-gnu
+  ./ct-ng i686-unknown-linux-gnu
   ./ct-ng build
+  tar -C ../x-tools/ \
+    -czf skyview-toolchain-host_linux_x86_64-target_linux_x86_32-git-$(git describe).tar.gz \
+    i686-unknown-linux-gnu
