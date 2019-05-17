@@ -62,6 +62,8 @@
   make install
   ./ct-ng i686-unknown-linux-gnu
   ./ct-ng build
+  chmod -R uga+w ../x-tools/i686-unknown-linux-gnu
+  rev_name="git-crosstool-ng-$(git describe --all --long --dirty | cut -d/ -f 2)"
   tar -C ../x-tools/ \
-    -czf skyview-toolchain-host_linux_x86_64-target_linux_x86_32-git-$(git describe).tar.gz \
+    -czf skyview-toolchain-host_linux_x86_64-target_linux_x86_32-${rev_name}.tar.gz \
     i686-unknown-linux-gnu
