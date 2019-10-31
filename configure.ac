@@ -2,82 +2,53 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.67])
+
 AC_INIT(
     [crosstool-NG],
-    [m4_esyscmd_s([git describe --always --dirty])],
-    [crossgcc@sourceware.org])
+    [m4_esyscmd_s([maintainer/git-version-gen --prefix crosstool-ng- .tarball-version])],
+    [crossgcc@sourceware.org],
+    [crosstool-ng],
+    [http://crosstool-ng.org])
 AC_CONFIG_AUX_DIR([scripts])
+AC_CONFIG_MACRO_DIR([m4])
 
-#--------------------------------------------------------------------
-# A few helper macros
+# FIXME try to use gnu strictness? Just add the missing files?
+# Set automake defaults:
+# - Tarballs are compressed with xz and bzip2
+# - Object files are generated in a subdirectory (new default in automake)
+# - Request new tar format (old, tar-v7, breaks on long paths we have)
+AM_INIT_AUTOMAKE([-Wall -Werror foreign no-dist-gzip dist-xz dist-bzip2 subdir-objects tar-pax])
 
-# Check for required tool
-AC_DEFUN(
-    [ACX_CHECK_TOOL_REQ],
-    [AC_CHECK_TOOLS([$1], [$2])
-     AS_IF(
-        [test -z "$$1"],
-        [AC_MSG_ERROR([missing required tool: $2])])
-    ])
+# To avoid stubbing autotools with missing script
+AM_MAINTAINER_MODE([enable])
 
-# Check for required tool, set variable to full pathname
-AC_DEFUN(
-    [ACX_PATH_TOOL_REQ],
-    [ACX_CHECK_TOOL_REQ([$1], [$2])
-     AS_CASE(
-        [$$1],
-        [/*],,
-        [?*],[AC_MSG_CHECKING([for absolute path to $$1])
-              $1=$(which $$1)
-              AC_MSG_RESULT([$$1])])])
-
-# Check for required program
-AC_DEFUN(
-    [ACX_CHECK_PROGS_REQ],
-    [AC_CHECK_PROGS([$1], [$2])
-     AS_IF(
-        [test -z "$$1"],
-        [AC_MSG_ERROR([missing required tool: $2])])
-    ])
-
-# Check for path to required program
-AC_DEFUN(
-    [ACX_PATH_PROGS_REQ],
-    [AC_PATH_PROGS([$1], [$2])
-     AS_IF(
-        [test -z "$$1"],
-        [AC_MSG_ERROR([missing required tool: $2])])
-    ])
-
-# Set the kconfig option
-AC_DEFUN(
-    [ACX_SET_KCONFIG_OPTION],
-    [AS_IF(
-        [test -n "$$1"],
-        [kconfig_options="$kconfig_options has_$1=y"],
-        [kconfig_options="$kconfig_options has_$1"])
-    ])
+# Safety check per autoconf best practices
+AC_CONFIG_SRCDIR([ct-ng.in])
 
 #--------------------------------------------------------------------
 # Allow dummy --{en,dis}able-{static,shared}
-AC_ARG_ENABLE(
-    [local],
-    [AS_HELP_STRING(
-        [--enable-local],
-        [do not install, and use current directory])])
+AC_ARG_ENABLE([local],
+    [AS_HELP_STRING([--enable-local],
+        [run ct-ng from the current directory; 'make install' unsupported])])
 AC_SUBST([enable_local], [${enable_local:-no}])
-AC_ARG_ENABLE(
-    [shared],
-    [AS_HELP_STRING(
-        [--enable-shared],
-        [build shared libraries (default=yes) (ignored)])])
-AC_ARG_ENABLE(
-    [static],
-    [AS_HELP_STRING(
-        [--enable-static],
-        [build static libraries (default=yes) (ignored)])])
 
-#---------------------------------------------------------------------
+AC_ARG_ENABLE([maintainer-mode],
+    [AS_HELP_STRING([--enable-maintainer-mode],
+        [Ignored; accepted to avoid a warning from debuild])])
+
+AC_ARG_WITH([bash-completion],
+    [AS_HELP_STRING([--with-bash-completion],
+        [install bash(1) command completion; can specify a path where it will be installed])],
+    [],
+    [with_bash_completion=yes])
+AS_IF([test "${with_bash_completion}" = "no"],
+    [BASH_COMPLETION_DIR=],
+    [test "${with_bash_completion}" != "yes"],
+    [BASH_COMPLETION_DIR="${with_bash_completion}"],
+    [BASH_COMPLETION_DIR='${datadir}/bash-completion/completions'])
+AM_CONDITIONAL([INSTALL_BASH_COMPLETION], [test -n "${BASH_COMPLETION_DIR}"])
+AC_SUBST([BASH_COMPLETION_DIR])
+
 # Check for --build and --host...
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
@@ -88,55 +59,50 @@ AS_IF([test -n "$target_alias"],
 # Allow program name tranformation (--program-{prefix,suffix,transform-name})
 AC_ARG_PROGRAM
 
-#---------------------------------------------------------------------
-# Initial checks that are usually done first (I don't know why, that's
-# just what I seem to experience...)
-#---------------------------------------------------------------------
-AC_ARG_WITH([install],
-    AS_HELP_STRING([--with-install=PATH],
-                   [Specify the full PATH to a BSD-compatible install]),
-    [INSTALL=$withval])
-AC_PROG_INSTALL
-AC_CACHE_VAL([ac_cv_path_GREP],
-    [AC_ARG_WITH([grep],
-        AS_HELP_STRING([--with-grep=PATH],
-                       [Specify the full PATH to GNU grep]),
-        [ac_cv_path_GREP=$withval])])
-AC_PROG_GREP
-AC_PROG_EGREP
-AS_IF(
-    [test ! "$EGREP" = "$GREP -E"],
-    [AC_MSG_ERROR([egrep is not $GREP -E])])
-AC_CACHE_VAL([ac_cv_path_SED],
-    [AC_ARG_WITH([sed],
-        AS_HELP_STRING([--with-sed=PATH],
-                       [Specify the full PATH to GNU sed]),
-        [ac_cv_path_SED=$withval])])
-AC_PROG_SED
-AC_MSG_CHECKING([whether sed understands -r -i -e])
-touch .ct-ng.sed.test
-if ${SED} -r -i -e 's/foo/bar/' .ct-ng.sed.test >/dev/null 2>&1; then
-    rm -f .ct-ng.sed.test
-    AC_MSG_RESULT([yes])
-else
-    rm -f .ct-ng.sed.test
-    AC_MSG_RESULT([no])
-    AC_MSG_ERROR()
-fi
+AC_PROG_MKDIR_P
 AC_PROG_LN_S
 
-#--------------------------------------------------------------------
-# A bunch of boring tests...
-#--------------------------------------------------------------------
-AC_PROG_CC
-AS_IF([test -z "$CC"],
-      [AC_MSG_ERROR([no suitable compiler found])])
-AC_PROG_CPP
+CTNG_PROG_INSTALL
 
-#---------------------------------------------------------------------
-# Check to see if gcc can static link
-AC_MSG_CHECKING([if gcc can static link])
-echo "int main() {}" | gcc -static -o /dev/null -xc - > /dev/null 2>&1
+CTNG_WITH_DEPRECATED([grep], [GREP])
+AC_ARG_VAR([GREP], [Specify the full path to GNU grep])
+
+# This is not a typo! Prefer GNU grep on macOS if it is installed.
+CTNG_PATH_TOOL_REQ([GREP], [ggrep grep], [grep])
+CTNG_PATH_TOOL_REQ([EGREP], [gegrep egrep], [egrep])
+AC_PROG_GREP
+AC_PROG_EGREP
+
+# FIXME: ct-ng assumes this in many places...
+AS_IF([test "$EGREP" != "$GREP -E"],
+    [AC_MSG_ERROR([egrep is not $GREP -E])])
+
+CTNG_PROG_VERSION_REQ_STRICT([SED],
+    [GNU sed >= 4.0],
+    [sed],
+    [gsed sed],
+    [GNU sed[^0-9]* [4-9]\.])
+AC_ARG_VAR([SED], [Specify the full path to GNU sed])
+
+AC_CONFIG_HEADERS([config.h])
+
+# Modern GCC/GDB releases require C++ support in the compiler
+AC_PROG_CC
+# Add for legacy reasons (automake < 1.14)
+AM_PROG_CC_C_O
+AC_PROG_CXX
+AC_PROG_CPP
+AC_PROG_LEX
+AC_PROG_YACC
+AS_IF([test -z "$CC" -o -z "$CXX"],
+      [AC_MSG_ERROR([no suitable compiler found])])
+
+AX_CXX_COMPILE_STDCXX([11],, [optional])
+CTNG_SET_KCONFIG_OPTION([has_cxx11], [${HAVE_CXX11}])
+
+# Check to see if the compiler can link statically
+AC_MSG_CHECKING([if $CC can static link])
+echo "int main() {}" | ${CC} -static -o /dev/null -xc - > /dev/null 2>&1
 static_test=$?
 AS_IF([test $static_test -eq 0],
           [static_link=y
@@ -144,281 +110,244 @@ AS_IF([test $static_test -eq 0],
       [test $static_test -ne 0],
           [static_link=
            AC_MSG_RESULT([no])])
-ACX_SET_KCONFIG_OPTION([static_link])
-
-# But we still need a way to specify the PATH to GNU versions (Damn MacOS)
-AC_ARG_WITH([objcopy],
-    AS_HELP_STRING([--with-objcopy=PATH],
-                   [Specify the full PATH to GNU objcopy]),
-    [OBJCOPY=$withval])
-AC_ARG_WITH([objdump],
-    AS_HELP_STRING([--with-objdump=PATH],
-                   [Specify the full PATH to GNU objdump]),
-    [OBJDUMP=$withval])
-AC_ARG_WITH([ranlib],
-    AS_HELP_STRING([--with-ranlib=PATH],
-                   [Specify the full PATH to GNU ranlib]),
-    [RANLIB=$withval])
-AC_ARG_WITH([readelf],
-    AS_HELP_STRING([--with-readelf=PATH],
-                   [Specify the full PATH to GNU readelf]),
-    [READELF=$withval])
-AC_ARG_WITH([gperf],
-    AS_HELP_STRING([--with-gperf=PATH],
-                   [Specify the full PATH to GNU gperf]),
-    [GPERF=$withval])
+CTNG_SET_KCONFIG_OPTION([static_link])
 
 AC_PROG_RANLIB
-ACX_PATH_TOOL_REQ([OBJCOPY], [gobjcopy objcopy])
-ACX_PATH_TOOL_REQ([OBJDUMP], [gobjdump objdump])
-ACX_PATH_TOOL_REQ([READELF], [greadelf readelf])
-ACX_PATH_TOOL_REQ([GPERF], [gperf])
+CTNG_PATH_TOOL_REQ([OBJCOPY], [gobjcopy objcopy], [objcopy])
+CTNG_PATH_TOOL_REQ([OBJDUMP], [gobjdump objdump], [objdump])
+CTNG_PATH_TOOL_REQ([READELF], [greadelf readelf], [readelf])
 
-ACX_CHECK_PROGS_REQ([bison], [bison])
-ACX_CHECK_PROGS_REQ([flex], [flex])
-ACX_CHECK_PROGS_REQ([makeinfo], [makeinfo])
-ACX_CHECK_PROGS_REQ([cut], [cut])
-ACX_CHECK_PROGS_REQ([stat], [stat])
-ACX_CHECK_PROGS_REQ([readlink], [readlink])
-ACX_CHECK_PROGS_REQ([wget], [wget])
-ACX_CHECK_PROGS_REQ([tar], [tar])
-ACX_CHECK_PROGS_REQ([gzip], [gzip])
-ACX_CHECK_PROGS_REQ([bzip2], [bzip2])
-ACX_CHECK_PROGS_REQ([help2man], [help2man])
+CTNG_CHECK_PROGS_REQ([flex], [flex])
+CTNG_CHECK_PROGS_REQ([makeinfo], [makeinfo])
+CTNG_CHECK_PROGS_REQ([cut], [cut])
+CTNG_CHECK_PROGS_REQ([readlink], [readlink])
+CTNG_CHECK_PROGS_REQ([tar], [tar])
+CTNG_CHECK_PROGS_REQ([gzip], [gzip])
+CTNG_CHECK_PROGS_REQ([bzip2], [bzip2])
+CTNG_CHECK_PROGS_REQ([xz], [xz])
+CTNG_CHECK_PROGS_REQ([unzip], [unzip])
+CTNG_CHECK_PROGS_REQ([help2man], [help2man])
+CTNG_CHECK_PROGS_REQ([file], [file])
+CTNG_CHECK_PROGS_REQ([which], [which])
 
-#--------------------------------------------------------------------
-# Still boring, but remember the path, now...
-#--------------------------------------------------------------------
-ACX_PATH_TOOL_REQ([PATCH], [gpatch patch])
+# Lzip is optional; all the packages that provide tarballs in .tar.lz format
+# also provide them in some other format. All other formats are currently
+# mandatory as there is at least one package that has no fallback for each
+# of them.
+# FIXME: this configure.ac should be only used for detecting the dependencies
+# of the ct-ng framework itself; anything needed at build time should be
+# determined by crosstool-NG.sh - perhaps, through another 'configure' that
+# runs during `ct-ng build`.
+AC_CHECK_PROGS([lzip], [lzip])
+CTNG_SET_KCONFIG_OPTION([lzip])
+AC_SUBST([lzip])
 
-#--------------------------------------------------------------------
-# And a bunch of less boring tests...
-#--------------------------------------------------------------------
+# Not a fatal failure even if we have neither - the tarballs may
+# be provided in a local directory.
+AC_CHECK_PROGS([wget], [wget])
+CTNG_SET_KCONFIG_OPTION([wget])
+AC_SUBST([wget])
+
+AC_CHECK_PROGS([curl], [curl])
+CTNG_SET_KCONFIG_OPTION([curl])
+AC_SUBST([curl])
+
+CTNG_CPU_COUNT
+
+CTNG_PATH_TOOL_REQ([PATCH], [gpatch patch], [patch])
+
 # We need a bash that is >= 3.1
-AC_CACHE_VAL([ac_cv_path__BASH],
-    [AC_ARG_WITH([bash],
-        AS_HELP_STRING([--with-bash=PATH],
-                       [Specify the full PATH to GNU bash >= 3.1]),
-        [ac_cv_path__BASH=$withval])])
-AC_CACHE_CHECK([for bash >= 3.1], [ac_cv_path__BASH],
-    [AC_PATH_PROGS_FEATURE_CHECK([_BASH], [bash],
-        [[_BASH_ver=$($ac_path__BASH --version 2>&1 \
-                     |$EGREP '^GNU bash, version (3\.[1-9]|4)')
-          test -n "$_BASH_ver" && ac_cv_path__BASH=$ac_path__BASH ac_path__BASH_found=:]],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([could not find bash >= 3.1])])])
-AC_SUBST([_BASH], [$ac_cv_path__BASH])
+CTNG_PROG_VERSION_REQ_STRICT([BASH_SHELL],
+    [GNU bash >= 3.1],
+    [bash],
+    [bash],
+    [^GNU bash, version (3\.[1-9]|4|5)])
 
 # We need a awk that *is* GNU awk
-AC_CACHE_VAL([ac_cv_path__AWK],
-    [AC_ARG_WITH([awk],
-        AS_HELP_STRING([--with-awk=PATH],
-                       [Specify the full PATH to GNU awk]),
-        [ac_cv_path__AWK=$withval])])
-AC_CACHE_CHECK([for GNU awk], [ac_cv_path__AWK],
-    [AC_PATH_PROGS_FEATURE_CHECK([_AWK], [gawk awk],
-        [[_AWK_ver=$($ac_path__AWK --version 2>&1 \
-                     |$EGREP '^GNU Awk ')
-          test -n "$_AWK_ver" && ac_cv_path__AWK=$ac_path__AWK ac_path__AWK_found=:]],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([could not find GNU awk])])])
-AC_SUBST([_AWK], [$ac_cv_path__AWK])
+CTNG_PROG_VERSION_REQ_STRICT([AWK],
+    [GNU awk],
+    [awk],
+    [gawk awk],
+    [^GNU Awk ])
 
+# FIXME This checks for tools at the time configure runs. If a tool is later updated
+# to satisfy our version requirement, we still won't be able to see that. Or worse,
+# downgraded/removed. We should check this and update configure.in options right
+# before running kconfig. Our configure should only check for stuff needed to
+# build/install crosstool-ng itself.
 #----------------------------------------
-# Check for GNU make 3.80 or above
-AC_CACHE_VAL([ac_cv_path_MAKE],
-    [AC_ARG_WITH([make],
-        AS_HELP_STRING([--with-make=PATH],
-                       [Specify the full PATH to GNU make >= 3.80]),
-        [ac_cv_path_MAKE=$withval])])
-AC_CACHE_CHECK([for GNU make >= 3.80], [ac_cv_path_MAKE],
-    [AC_PATH_PROGS_FEATURE_CHECK([MAKE], [gmake make],
-        [[MAKE_ver=$($ac_path_MAKE --version 2>&1 \
-                     |$EGREP '^GNU Make (3.[89][[:digit:]]|[4-9])')
-          test -n "$MAKE_ver" && ac_cv_path_MAKE=$ac_path_MAKE ac_path_MAKE_found=:]],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([could not find GNU make >= 3.80])])])
-AC_SUBST([MAKE], [$ac_cv_path_MAKE])
-AC_PROG_MAKE_SET
+# Check for GNU make (want 3.81 or above, but will accept as long as any make is found)
+CTNG_PROG_VERSION_REQ_ANY([MAKE],
+    [GNU make >= 3.81],
+    [make],
+    [gmake make],
+    [^GNU Make (3\.8[1-9]|3\.9[0-9]|[4-9]\.)],
+    [make_3_81_or_newer])
 
-# Check for GNU make 3.81 or newer, otherwise
-# it will be built as a companion tool.
-AC_MSG_CHECKING([if make is 3.81 or newer])
-AS_IF(
-      [[MAKE_ver2=$(echo "$MAKE_ver" \
-                    |$EGREP '^GNU Make (3.81|3.9[0-9]|[4-9])')
-        test -n "$MAKE_ver2"]],
-      [make_3_81_or_newer="y"
-       AC_MSG_RESULT([yes])
-      ],
-      [make_3_81_or_newer=
-       AC_MSG_RESULT([no])
-      ]
-     )
-ACX_SET_KCONFIG_OPTION([make_3_81_or_newer])
+CTNG_PROG_VERSION_REQ_ANY([MAKE],
+    [GNU make >= 4.0],
+    [make],
+    [gmake make],
+    [^GNU Make [4-9]\.],
+    [make_4_0_or_newer])
 
-#----------------------------------------
-# Check for libtool >= 1.5.26
-AC_CACHE_VAL([ac_cv_path_LIBTOOL],
-    [AC_ARG_WITH([libtool],
-        AS_HELP_STRING([--with-libtool=PATH],
-                       [Specify the full PATH to GNU libtool >= 1.5.26]),
-        [ac_cv_path_LIBTOOL=$withval])])
-AC_CACHE_CHECK([for GNU libtool >= 1.5.26], [ac_cv_path_LIBTOOL],
-    [AC_PATH_PROGS_FEATURE_CHECK([LIBTOOL], [glibtool libtool],
-        [[LIBTOOL_ver=$($ac_path_LIBTOOL --version 2>&1 \
-                        |$EGREP '\(GNU libtool.*\) (2[[:digit:]]*\.|1\.6[[:digit:]]*\.|1\.5\.[2-9][[:digit:]]+)')
-          test -n "$LIBTOOL_ver" && ac_cv_path_LIBTOOL=$ac_path_LIBTOOL ac_path_LIBTOOL_found=:]],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([could not find GNU libtool >= 1.5.26])])])
-AC_SUBST([LIBTOOL], [$ac_cv_path_LIBTOOL])
+# Check other companion tools that we may or may not build.
+CTNG_PROG_VERSION_REQ_ANY([LIBTOOL],
+    [GNU libtool >= 2.4],
+    [libtool],
+    [glibtool libtool],
+    [\(GNU libtool\) ([3-9]\.|2.[4-9]|2.[1-3][0-9])],
+    [libtool_2_4_or_newer])
 
-#----------------------------------------
-# Check for libtoolize >= 1.5.26
-AC_CACHE_VAL([ac_cv_path_LIBTOOLIZE],
-    [AC_ARG_WITH([libtoolize],
-        AS_HELP_STRING([--with-libtoolize=PATH],
-                       [Specify the full PATH to GNU libtoolize >= 1.5.26]),
-        [ac_cv_path_LIBTOOLIZE=$withval])])
-AC_CACHE_CHECK([for GNU libtoolize >= 1.5.26], [ac_cv_path_LIBTOOLIZE],
-    [AC_PATH_PROGS_FEATURE_CHECK([LIBTOOLIZE], [glibtoolize libtoolize],
-        [[LIBTOOLIZE_ver=$($ac_path_LIBTOOLIZE --version 2>&1 \
-                        |$EGREP '\(GNU libtool.*\) (2[[:digit:]]*\.|1\.6[[:digit:]]*\.|1\.5\.[2-9][[:digit:]]+)')
-          test -n "$LIBTOOLIZE_ver" && ac_cv_path_LIBTOOLIZE=$ac_path_LIBTOOLIZE ac_path_LIBTOOLIZE_found=:]],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([could not find GNU libtoolize >= 1.5.26])])])
-AC_SUBST([LIBTOOLIZE], [$ac_cv_path_LIBTOOLIZE])
+CTNG_PROG_VERSION_REQ_ANY([LIBTOOLIZE],
+    [GNU libtoolize >= 2.4],
+    [libtoolize],
+    [glibtoolize libtoolize],
+    [\(GNU libtool\) ([3-9]\.|2.[4-9]|2.[1-3][0-9])],
+    [libtoolize_2_4_or_newer])
 
-#----------------------------------------
-# Check for automake >= 1.10
-AC_CACHE_VAL([ac_cv_path_automake],
-    [AC_ARG_WITH([automake],
-        AS_HELP_STRING([--with-automake=PATH],
-                       [Specify the full PATH to GNU automake >= 1.10]),
-        [ac_cv_path_automake=$withval])])
-AC_CACHE_CHECK([for GNU automake >= 1.10], [ac_cv_path_automake],
-    [AC_PATH_PROGS_FEATURE_CHECK([automake], [automake],
-        [[automake_ver=$($ac_path_automake --version 2>&1 \
-                         |$EGREP '\(GNU automake\) (1\.[[:digit:]]{2,}|[2-9][[:digit:]]*\.)')
-          test -n "$automake_ver" && ac_cv_path_automake=$ac_path_automake ac_path_automake_found=:]],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([could not find GNU automake >= 1.10])])])
-AC_SUBST([automake], [$ac_cv_path_automake])
+CTNG_PROG_VERSION([AUTOCONF],
+    [GNU autoconf >= 2.65],
+    [autoconf],
+    [autoconf],
+    [\(GNU Autoconf\) ([3-9]\.|2\.[7-9][0-9]|2\.6[5-9])],
+    [autoconf_2_65_or_newer])
 
-#--------------------------------------------------------------------
-# Boring again... But still a bit of work to do...
-#--------------------------------------------------------------------
+CTNG_PROG_VERSION([AUTORECONF],
+    [GNU autoreconf >= 2.63],
+    [autoreconf],
+    [autoreconf],
+    [\(GNU Autoconf\) ([3-9]\.|2\.[7-9][0-9]|2\.6[5-9])],
+    [autoreconf_2_65_or_newer])
+
+CTNG_PROG_VERSION([AUTOMAKE],
+    [GNU automake >= 1.15],
+    [automake],
+    [automake],
+    [\(GNU automake\) ([2-9]\.|1\.[2-9][0-9]|1\.1[5-9])],
+    [automake_1_15_or_newer])
+
+CTNG_PROG_VERSION([M4],
+    [GNU m4 >= 1.4.12],
+    [m4],
+    [gm4 m4],
+    [\(GNU M4\) ([2-9]\.|1\.[5-9]|1\.[1-4][0-9]|1\.4\.[2-9][0-9]|1\.4\.1[2-9])],
+    [gnu_m4_1_4_12_or_newer])
+
+CTNG_PROG_VERSION([PYTHON],
+    [Python],
+    [python],
+    [python37 python3.7 python36 python3.6 python35 python3.5 python34 python3.4 python33 python3.3 python32 python3.2 python31 python3.1 python3 python27 python2.7 python26 python2.6 python2 python],
+    [^Python [23]\.],
+    [python])
+
+CTNG_PROG_VERSION([PYTHON],
+    [Python >= 3.4],
+    [python],
+    [python37 python3.7 python36 python3.6 python35 python3.5 python34 python3.4 python3 python],
+    [^Python 3\.([4-9]|[1-9][0-9]+)\.],
+    [python_3_4_or_newer])
+
+CTNG_PROG_VERSION([BISON],
+    [bison >= 2.7],
+    [bison],
+    [bison],
+    [\(GNU Bison\) (2\.[7-9]|2\.[1-9][0-9]|[3-9]\.)],
+    [bison_2_7_or_newer])
+
 AC_SUBST([kconfig_options])
 
-#----------------------------------------
-AC_CHECK_PROGS([xz],   [xz])
-ACX_SET_KCONFIG_OPTION([xz])
-AS_IF(
-    [test -z "$xz"],
-    [AC_CHECK_PROGS([lzma], [lzma])])
-ACX_SET_KCONFIG_OPTION([lzma])
+AC_CHECK_PROGS([dtc], [dtc])
+CTNG_SET_KCONFIG_OPTION([dtc])
 
-#----------------------------------------
 AC_CHECK_PROGS([cvs], [cvs])
-ACX_SET_KCONFIG_OPTION([cvs])
+CTNG_SET_KCONFIG_OPTION([cvs])
 
-#----------------------------------------
 AC_CHECK_PROGS([svn], [svn])
-ACX_SET_KCONFIG_OPTION([svn])
+CTNG_SET_KCONFIG_OPTION([svn])
 
-#--------------------------------------------------------------------
-# Now, for some fun...
-#--------------------------------------------------------------------
+AC_CHECK_PROGS([git], [git])
+CTNG_SET_KCONFIG_OPTION([git])
+
+# Check which tools we have for verifying the digest
+AC_PATH_PROGS([md5sum], [gmd5sum md5sum])
+AC_PATH_PROGS([sha1sum], [gsha1sum sha1sum])
+AC_PATH_PROGS([sha256sum], [gsha256sum sha256sum])
+AC_PATH_PROGS([sha512sum], [gsha512sum sha512sum])
+CTNG_SET_KCONFIG_OPTION([md5sum])
+CTNG_SET_KCONFIG_OPTION([sha1sum])
+CTNG_SET_KCONFIG_OPTION([sha256sum])
+CTNG_SET_KCONFIG_OPTION([sha512sum])
+
+# FIXME why checking if not using the result? We don't provide replacemant malloc/alloca/...
 AC_C_INLINE
 AC_HEADER_STDC
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_ALLOCA
 
-#----------------------------------------
-# Check for gettext and libintl for the kconfig frontends
-AC_SUBST([gettext])
-AC_CHECK_HEADERS(
-    [libintl.h],
-    [ac_ct_gettext_hdr=$ac_header; break])
-AS_IF(
-    [test -n "$ac_ct_gettext_hdr"],
-    [AC_CHECK_DECL(
-        [gettext],
-        [gettext=y],,
-        [AC_INCLUDES_DEFAULT()
-         #include <$ac_ct_gettext_hdr>])])
-SAVE_LIBS=$LIBS
-AC_SEARCH_LIBS(bindtextdomain, intl, [test "$ac_res" = "none required" || INTL_LIBS="${ac_res}"])
-LIBS=$SAVE_LIBS
-AC_SUBST([INTL_LIBS])
+AM_GNU_GETTEXT([external])
+AM_GNU_GETTEXT_VERSION([0.19.8])
 
-#----------------------------------------
-# Check for ncurses, for the kconfig frontends
-AC_SUBST([ac_ct_curses_hdr])
-AC_CHECK_HEADERS(
-    [ncurses/ncurses.h ncurses/curses.h ncursesw/curses.h ncurses.h curses.h],
-    [ac_ct_curses_hdr=$ac_header; break])
-AS_IF(
-    [test -z "$ac_ct_curses_hdr"],
-    [AC_MSG_ERROR([could not find curses header, required for the kconfig frontends])])
-AC_SEARCH_LIBS(
-    [initscr],
-    [ncursesw ncurses curses],
-    [ac_ct_curses_lib_found=yes; break])
-AS_IF(
-    [test -z "$ac_ct_curses_lib_found"],
-    [AC_MSG_ERROR([could not find curses library, required for the kconfig frontends])])
-AC_SEARCH_LIBS(
-    [tgetent],
-    [termcap tinfo ncursesw ncurses curses])
+# For now, curses are needed to build kconfig. We may support a command-line
+# only configuration without curses later. For now, fail in configure but
+# consider it ok in config.h.
+AX_WITH_CURSES
+AS_IF([test "x$ax_cv_curses" != "xyes" ], [AC_MSG_ERROR([curses library not found])])
+AX_WITH_CURSES_PANEL
+AS_IF([test "x$ax_cv_panel" != "xyes" ], [AC_MSG_ERROR([panel library not found])])
+AX_WITH_CURSES_MENU
+AS_IF([test "x$ax_cv_menu" != "xyes" ], [AC_MSG_ERROR([menu library not found])])
 
-#--------------------------------------------------------------------
-# Lastly, take care of crosstool-NG internal values
-#--------------------------------------------------------------------
-# Hey! We need the date! :-)
-AC_SUBST(
-    [DATE],
-    [$(date +%Y%m%d)])
+AH_BOTTOM([
+/* Select the correct curses/menu/panel headers */
+#if defined HAVE_NCURSESW_CURSES_H
+#  define CURSES_LOC <ncursesw/curses.h>
+#elif defined HAVE_NCURSESW_H
+#  define CURSES_LOC <ncursesw.h>
+#elif defined HAVE_NCURSES_CURSES_H
+#  define CURSES_LOC <ncurses/curses.h>
+#elif defined HAVE_NCURSES_H
+#  define CURSES_LOC <ncurses.h>
+#elif defined HAVE_CURSES_H
+#  define CURSES_LOC <curses.h>
+#else
+#  /* not an error - maybe a configuration didn't need curses */
+#endif
 
-# Decorate the version string if needed
-AS_IF(
-    [test -f version.sh -a -x version.sh],
-    [V=$(./version.sh "${PACKAGE_VERSION}")])
-AS_IF(
-    [test -n "${V}"],
-    [PACKAGE_VERSION="${V}"],
-    [AS_CASE(
-        [${PACKAGE_VERSION}],
-        [git|*+git],
-        [rev_id="$( git rev-parse --short HEAD )"
-         git diff-index --quiet HEAD || rev_id="${rev_id}-dirty"
-         PACKAGE_VERSION="${PACKAGE_VERSION}+${rev_id:-unknown-$( date +%Y%m%d.%H%M%S )}"
-        ])])
-# Arrange to have no / in the directory name, no need to create an
-# arbitrarily deep directory structure
-[PACKAGE_VERSION="$( printf "${PACKAGE_VERSION}\n" |"${SED}" -r -e 's:/+:_:g;' )"]
+#if defined HAVE_NCURSESW_PANEL_H
+#  define PANEL_LOC <ncursesw/panel.h>
+#elif defined HAVE_NCURSES_PANEL_H
+#  define PANEL_LOC <ncurses/panel.h>
+#elif defined HAVE_PANEL_H
+#  define PANEL_LOC <panel.h>
+#else
+#  /* not an error */
+#endif
 
-# Handle the local case
-AC_SUBST([sublibdir])
-AC_SUBST([subdocdir])
-AS_IF(
-    [test "x$enable_local" = "xyes"],
-    [AC_MSG_NOTICE([overiding all of --prefix and the likes, because --enable-local was set])
-     prefix=$(pwd)
-     exec_prefix="$prefix"
-     bindir="$prefix"
-     libdir="$prefix"
-     sublibdir=""
-     docdir="$prefix""/docs"
-     subdocdir=""
-     datarootdir="$prefix"
-     mandir="$docdir"],
-    [sublibdir="/\${VERSION}"
-     subdocdir="/\${VERSION}"])
+#if defined HAVE_NCURSESW_MENU_H
+#  define MENU_LOC <ncursesw/menu.h>
+#elif defined HAVE_NCURSES_MENU_H
+#  define MENU_LOC <ncurses/menu.h>
+#elif defined HAVE_MENU_H
+#  define MENU_LOC <menu.h>
+#else
+#  /* not an error */
+#endif
+])
 
-#--------------------------------------------------------------------
-# Finally, generate the output file(s)
-#--------------------------------------------------------------------
-AC_CONFIG_FILES([Makefile])
+AX_BUILD_DATE_EPOCH(DATE, [%c])
+AC_SUBST([DATE])
+
+AM_CONDITIONAL([INSTALL_USER_MANUAL], [test ! -f "${srcdir}/docs/MANUAL_ONLINE"])
+AC_MSG_CHECKING([if the manual needs to be installed])
+AM_COND_IF([INSTALL_USER_MANUAL], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no])])
+
+AC_CONFIG_FILES([
+    Makefile
+    paths.sh
+    kconfig/Makefile
+    config/configure.in
+])
+
 AC_OUTPUT

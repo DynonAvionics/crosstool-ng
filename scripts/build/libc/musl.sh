@@ -2,37 +2,27 @@
 # Copyright 2013 Timo TerÃ¤s
 # Licensed under the GPL v2. See COPYING in the root of this package
 
-do_libc_get() {
-    if [ "${CT_LIBC_MUSL_CUSTOM}" = "y" ]; then
-        CT_GetCustom "musl" "${CT_LIBC_MUSL_CUSTOM_VERSION}" \
-            "${CT_LIBC_MUSL_CUSTOM_LOCATION}"
-    else # ! custom location
-        CT_GetFile "musl-${CT_LIBC_VERSION}" http://www.musl-libc.org/releases
-    fi # ! custom location
-}
-
-do_libc_extract() {
-    CT_Extract "musl-${CT_LIBC_VERSION}"
-    CT_Patch "musl" "${CT_LIBC_VERSION}"
-}
-
 # Build and install headers and start files
-do_libc_start_files() {
+musl_start_files()
+{
     # Start files and Headers should be configured the same way as the
     # final libc, but built and installed differently.
-    do_libc_backend libc_mode=startfiles
+    musl_backend libc_mode=startfiles
 }
 
 # This function builds and install the full C library
-do_libc() {
-    do_libc_backend libc_mode=final
+musl_main()
+{
+    musl_backend libc_mode=final
 }
 
-do_libc_post_cc() {
-    :
+musl_post_cc() {
+    # MUSL creates dynamic linker symlink with absolute path - which works on the
+    # target but not on the host. We want our cross-ldd tool to work.
+    CT_MultilibFixupLDSO
 }
 
-do_libc_backend() {
+musl_backend() {
     local libc_mode
     local arg
 
@@ -47,20 +37,20 @@ do_libc_backend() {
     esac
 
     CT_mkdir_pushd "${CT_BUILD_DIR}/build-libc-${libc_mode}"
-    CT_IterateMultilibs do_libc_backend_once multilib libc_mode="${libc_mode}"
+    CT_IterateMultilibs musl_backend_once multilib libc_mode="${libc_mode}"
     CT_Popd
     CT_EndStep
 }
 
 # This backend builds the C library
-# Usage: do_libc_backend param=value [...]
+# Usage: musl_backend param=value [...]
 #   Parameter           : Definition                      : Type      : Default
 #   libc_mode           : 'startfiles' or 'final'         : string    : (none)
-do_libc_backend_once() {
+musl_backend_once() {
     local libc_mode
     local -a extra_cflags
     local -a extra_config
-    local src_dir="${CT_SRC_DIR}/${CT_LIBC}-${CT_LIBC_VERSION}"
+    local src_dir="${CT_SRC_DIR}/musl"
     local multi_dir multi_os_dir multi_root multi_flags multi_index multi_count
     local multilib_dir
     local hdr_install_subdir
@@ -78,13 +68,6 @@ do_libc_backend_once() {
 
     extra_cflags=( ${multi_flags} )
 
-    # From buildroot:
-    # gcc constant folding bug with weak aliases workaround
-    # See http://www.openwall.com/lists/musl/2014/05/15/1
-    if [ "${CT_CC_GCC_4_9_or_later}" = "y" ]; then
-        extra_cflags+=("-fno-toplevel-reorder")
-    fi
-
     if [ "${CT_LIBC_MUSL_DEBUG}" = "y" ]; then
         extra_config+=("--enable-debug")
     fi
@@ -92,6 +75,11 @@ do_libc_backend_once() {
     if [ "${CT_LIBC_MUSL_WARNINGS}" = "y" ]; then
         extra_config+=("--enable-warnings")
     fi
+
+    case "${CT_SHARED_LIBS}" in
+        y) extra_config+=("--enable-shared");;
+        *) extra_config+=("--disable-shared");;
+    esac
 
     extra_config+=( "--enable-optimize=${CT_LIBC_MUSL_OPTIMIZE}" )
 
@@ -102,6 +90,8 @@ do_libc_backend_once() {
         extra_config+=( "--includedir=/usr/include/${hdr_install_subdir}" )
     fi
 
+    CT_SymlinkToolsMultilib
+
     # NOTE: musl handles the build/host/target a little bit differently
     # then one would expect:
     #   build   : not used
@@ -110,6 +100,7 @@ do_libc_backend_once() {
     CT_DoExecLog CFG                                      \
     CFLAGS="${extra_cflags[*]}"                           \
     CROSS_COMPILE="${CT_TARGET}-"                         \
+    ${CONFIG_SHELL}                                       \
     ${src_dir}/configure                                  \
         --host="${multi_target}"                          \
         --target="${multi_target}"                        \
@@ -126,7 +117,7 @@ do_libc_backend_once() {
             obj/crt/crt1.o obj/crt/crti.o obj/crt/crtn.o
         CT_DoLog EXTRA "Installing C library start files"
         CT_DoExecLog ALL cp -av obj/crt/crt*.o "${multi_root}${multilib_dir}"
-        CT_DoExecLog ALL ${CT_TARGET}-gcc -nostdlib \
+        CT_DoExecLog ALL ${CT_TARGET}-${CT_CC} -nostdlib \
             -nostartfiles -shared -x c /dev/null -o "${multi_root}${multilib_dir}/libc.so"
     fi
     if [ "${libc_mode}" = "final" ]; then
@@ -137,7 +128,7 @@ do_libc_backend_once() {
             "${multi_root}${multilib_dir}/libc.so"
 
         CT_DoLog EXTRA "Building C library"
-        CT_DoExecLog ALL make ${JOBSFLAGS}
+        CT_DoExecLog ALL make ${CT_JOBSFLAGS}
 
         CT_DoLog EXTRA "Installing C library"
         CT_DoExecLog ALL make DESTDIR="${multi_root}" install
@@ -153,6 +144,9 @@ do_libc_backend_once() {
                     ;;
             esac
         done
+
+        # Any additional actions for this architecture
+        CT_DoArchMUSLPostInstall
     fi
 
     CT_EndStep
